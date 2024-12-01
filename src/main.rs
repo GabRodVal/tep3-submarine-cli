@@ -77,9 +77,9 @@ fn create_save_file() -> std::io::Result<()> {
         id: get_save_files().expect("Erro ao carregar arquivos salvos.").len() as u8 + 1,
         sub_name: String::from(sub_name),
         last_save: Utc::now(),
-        oxygen: 200,
+        oxygen: 240,
         player_direction: Direction::North,
-        player_position: (10, 42, 1),
+        player_position: (11, 42, 1),
         real_map: load_map_csv().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e)))?,
         //player_map: vec![vec![vec!["".to_string(); 50]; 50];3];
         player_map: player_map,
@@ -95,10 +95,14 @@ fn create_save_file() -> std::io::Result<()> {
 
     println!("Jogo salvo como: {}", save_name);
 
+    println!("\nA muitas décadas atrás, o Barão Matthew Sheldrake afundou junto de seu návio nessas águas");
+    println!("Reza a lenda, que ele levava consigo toda sua fortuna dentro de um cofre dourado...");
+    println!("Com o seu submarino '{}', cabe a você encontrar este tesouro!", &cur_game.sub_name);
+
     game_loop(cur_game);
     Ok(())
 }
-//fn  update_save_file(game: &Game)
+
 
 fn get_save_files() -> std::io::Result<Vec<String>> {
     let entries = fs::read_dir("saves")?;
@@ -328,31 +332,192 @@ fn game_hud(game: &Game){
     println!("Oxigênio:{}", game.oxygen);
 }
 
+fn move_sub(game: &mut Game,dir: Direction){
+    let (cur_x, cur_y, cur_z) = game.player_position;
+    let (mut next_x, mut next_y, mut next_z) = (cur_x, cur_y, cur_z);
+
+    print_movement(&dir);
+
+    match dir {
+        Direction::North => {
+            game.player_direction = dir;
+            if next_y >= 1{
+                next_y -= 1;
+            }else{
+                println!("Área fora dos parâmetros dá missão! retornando...");
+                return;
+            }
+        },
+        Direction::South => {
+            next_y += 1;
+            game.player_direction = dir;
+    },
+        Direction::East => {
+            next_x += 1;
+            game.player_direction = dir;
+    },
+        Direction::West => {
+            game.player_direction = dir;
+            if next_x >= 1{
+                next_x -= 1;
+            }else{
+                println!("Área fora dos parâmetros dá missão! retornando...");
+                return;
+            }
+    },
+        Direction::Up => {
+            if next_z >=1{
+                next_z -= 1;
+            }else{
+                println!("Altitude máxima já alcançada! Impossível ascender mais...");
+                return;
+            }
+        },
+        Direction::Down => next_z += 1,
+    }
+
+    if next_x < 0 || next_x > 49 || next_y < 0 || next_y > 49{
+        println!("Área fora dos parâmetros dá missão! retornando...");
+        return;
+    }else if next_z > 2{
+        println!("Profundidade máxima já alcançada! Impossível descer mais...");
+        return;
+    } else if game.real_map[next_z as usize][next_y as usize][next_x as usize] == "rock" || game.real_map[next_z as usize][next_y as usize][next_x as usize] == "borderRock"{
+        println!("O submarino se bate em uma rocha! Ouch!");
+    } else if game.real_map[next_z as usize][next_y as usize][next_x as usize] == "treasure"{
+        println!("O submarino se bate contra algo precioso! Tesouro detectado nas redondezas!");
+    } else {
+        game.real_map[cur_z as usize][cur_y as usize][cur_x as usize] = "n/a".to_string();
+        game.real_map[next_z as usize][next_y as usize][next_x as usize] = "player".to_string();
+        game.player_map[cur_z as usize][cur_y as usize][cur_x as usize] = "n/a".to_string();
+        game.player_map[next_z as usize][next_y as usize][next_x as usize] = "player".to_string();
+        game.player_position = (next_x as u8, next_y as u8, next_z as u8);
+
+    }
+}
+
+fn shoot_missile(game: &mut Game){
+    let (cur_x , cur_y, cur_z) = game.player_position;
+    let (mut x_loc, mut y_loc) = (0,0);
+
+    println!("\nO submarino dispara um torpedo a frente!");
+
+    for it in 1..11{
+        match game.player_direction {
+            Direction::North | Direction::Up | Direction::Down => y_loc = -it  as i8,
+            Direction::South => y_loc = it,
+            Direction::East => x_loc = it,
+            Direction::West => x_loc = -it  as i8,
+        }
+
+        if game.real_map[cur_z as usize][(cur_y as i8 + y_loc as i8) as usize][(cur_x as i8 + x_loc as i8) as usize] == "n/a".to_string(){
+            continue;
+        }else if game.real_map[cur_z as usize][(cur_y as i8 + y_loc as i8) as usize][(cur_x as i8 + x_loc as i8) as usize] == "borderRock".to_string(){
+            println!("O torpedo se bate em uma rocha robusta! Nenhum dano parece ter ocorrido...");
+            return;
+        }else if game.real_map[cur_z as usize][(cur_y as i8 + y_loc as i8) as usize][(cur_x as i8 + x_loc as i8) as usize] == "rock".to_string(){
+            println!("O torpedo atinge uma rocha e a destrói!");
+            game.real_map[cur_z as usize][(cur_y as i8 + y_loc as i8) as usize][(cur_x as i8 + x_loc as i8) as usize] = "n/a".to_string();
+            return;
+        }
+    }
+    println!("Você não ouve o som do torpedo, deve ter viajado muito longe...");
+}
+
+
+fn run_scan(game: &mut Game){
+    let (player_x, player_y, player_z) = game.player_position;
+    println!("\nEscaneando arredores...");
+    for y in -6i8..7{
+        for x in -9i8..10{
+            let cur_tile_x = player_x as i8 + x;
+            let cur_tile_y = player_y as i8 + y;
+            if !(cur_tile_x < 0 || cur_tile_y < 0 || cur_tile_x > 49 || cur_tile_y > 49) {
+                game.player_map[player_z as usize][cur_tile_y as usize][cur_tile_x as usize] = game.real_map[player_z as usize][cur_tile_y as usize][cur_tile_x as usize].clone();
+            }
+        }
+    }
+}
+
+fn capture_item(game: &Game) -> bool {
+    let (player_x, player_y, player_z) = game.player_position;
+    println!("O submarino tenta capturar algo a sua frente...");
+
+    match game.player_direction {
+        Direction::North | Direction::Up | Direction::Down => {
+            if game.real_map[player_z as usize][(player_y - 1) as usize][player_x as usize] == "treasure"{
+                return true;
+            }
+        },
+        Direction::South => {
+            if game.real_map[player_z as usize][(player_y + 1) as usize][player_x as usize] == "treasure"{
+                return true;
+            }
+        },
+        Direction::East => {
+            if game.real_map[player_z as usize][player_y as usize][(player_x + 1) as usize] == "treasure"{
+                return true;
+            }
+        },
+        Direction::West => {
+            if game.real_map[player_z as usize][player_y as usize][(player_x - 1) as usize] == "treasure"{
+                return true;
+            }
+        },
+    }
+
+    println!("Nada interessante encontrado...");
+    return false;
+}
+
+fn print_help(){
+    println!("Lista de comandos:");
+    println!("Move [] - Move o návio na direção específicada\nOpções: North: Move o submarino na direção norte\n------> South: Move o submarino na direção sul\n------> East: Move o submarino na direção leste\n------> West: Move o submarino na direção oeste\n------> Up: Sobe o submarino 1 nível\n------> Down: Desce o submarino 1 nível");
+    println!("Scan - Detecta obstáculos e items ao redor do návio");
+    println!("Shoot - Dispara um torpedo a frente do návio, útil para se livrar de rochas");
+    println!("Capture - Pega um item a frente do návio, use para obter o tesouro!");
+    println!("Save - Salva o progresso do seu jogo");
+    println!("Help - Você já sabe o que isso faz!");
+    println!("Quit - Termina a execução do jogo");
+    println!("OBS: Os comandos aqui expostos NÃO são case-sensitive");
+}
+
 
 fn game_loop(mut game: Game){
 
-    let mut cur_game: &mut Game = &mut game;
-    println!("Jogo começado! Digite 'Help' para saber como dirigir o submarino '{}'", &cur_game.sub_name);
+    //let mut cur_game: &mut Game = &mut game;
+    println!("\nJogo começado! Digite 'Help' para saber como dirigir o submarino '{}'", &game.sub_name);
     
     loop {
-        game_hud(&cur_game);
+        game_hud(&game);
+
+        if game.oxygen <= 0{
+            println!("Seu oxigênio acaba!");
+            println!("O submarino rapidamente ascende para a superfície, e uma equipe de resgate lhe ajuda a sair");
+            println!("O cofre nunca foi encontrado...");
+            println!("FIM DE JOGO");
+            break;
+        }
 
         let input = get_player_input();
         match match_player_input(&input) {
             Some(Action::Move(dir)) => {
-                print_movement(&dir);
-                cur_game.player_direction = dir;
-
+                move_sub(&mut game, dir);
             }
             Some(Action::Scan) => {
-                println!("O submarino escaneia seus arredores...");
+                run_scan(&mut game);
             }
             Some(Action::Shoot) =>{
-                println!("O submarino dispara um míssel!");
+                shoot_missile(&mut game);
             }
             Some(Action::Capture) =>{
-                println!("O submarino tenta pegar um item próximo de si...");
-                println!("Mas nada ocorre!");
+                if capture_item(&game){
+                    println!("Sucesso! Você obteve o 'Cofre de Matthew Sheldrake'!");
+                    println!("Após algum tempo, o submarino retorna a superfície...");
+                    println!("Com sua nova fortuna, você vive uma vida próspera e luxuosa!");
+                    println!("FIM DE JOGO");
+                    break;
+                }
             }
             Some(Action::Quit) =>{
                 println!("Encerrando o jogo...");
@@ -363,36 +528,14 @@ fn game_loop(mut game: Game){
                 break;
             }
             Some(Action::Help) =>{
-                println!("Nome do submarino:{}", &cur_game.sub_name);
-                match load_map_csv(){
-                    Ok(map) =>{
-                        for h in 0..3{
-                            for x in 0..50{
-                                for y in 0..50{
-                                    match map[h][x][y].as_str(){
-                                        "rock" => print!("#"),
-                                        "borderRock" => print!("/"),
-                                        "treasure" => print!("*"),
-                                        "n/a" => print!(" "),
-                                        _ => print!("P"),
-                                    }
-                                }
-                                print!("\n");
-                            }
-                            println!("*");
-                        }
-                    },
-                    Err(e) =>{
-                        println!("Erro : {}", e)
-                    }
-                }
+                print_help();
             }
             None => {
                 println!("Comando inválido ou ainda não implementado");
             }
         }
 
-        cur_game.oxygen -= 1;
+        game.oxygen -= 1;
     }
 }
 
