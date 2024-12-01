@@ -7,6 +7,8 @@ use std::array;
 use std::path::Path;
 use regex::Regex;
 use csv::Reader;
+use std::thread;
+use std::time::Duration;
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 
@@ -99,7 +101,7 @@ fn create_save_file() -> std::io::Result<()> {
     println!("Reza a lenda, que ele levava consigo toda sua fortuna dentro de um cofre dourado...");
     println!("Com o seu submarino '{}', cabe a você encontrar este tesouro!", &cur_game.sub_name);
 
-    game_loop(cur_game);
+    game_loop(cur_game, false);
     Ok(())
 }
 
@@ -246,6 +248,14 @@ fn load_map_csv() -> Result<Vec<Vec<Vec<String>>>, Box<dyn std::error::Error>> {
     Ok(local_map)
 }
 
+fn load_demo_csv() -> Result<Vec<String>, Box<dyn std::error::Error>>{
+    let mut demo_csv = Reader::from_path("assets/demo.csv")?;
+    let csv_rec = demo_csv.records().next().ok_or("Erro ao carregar demo.csv")??;
+    let demo_inputs: Vec<String> = csv_rec.get(0).unwrap_or("").split(';').map(|s| s.to_string()).collect();
+
+    Ok(demo_inputs)
+}
+
 fn match_player_input(input: &str) -> Option<Action> {
     match input.trim().to_lowercase().as_str() {
         "move north" => Some(Action::Move(Direction::North)),
@@ -282,7 +292,7 @@ fn title_screen(){
             "2" => {
                 match load_save_menu(){
                     Ok(game) =>{
-                        game_loop(game);
+                        game_loop(game, false);
                     },
                     Err(e) =>{
                         println!("Erro ao carregar o jogo: {}", e);
@@ -290,7 +300,24 @@ fn title_screen(){
                 }
                 break
             },
-            "3" =>println!(""),
+            "3" =>{
+                let mut player_map =  vec![vec![vec!["".to_string(); 50]; 50];3];
+                player_map[1][42][10] = "player".to_string();
+
+                let demo_game = Game{
+                    id: get_save_files().expect("Erro ao carregar arquivos salvos.").len() as u8 + 1,
+                    sub_name: "Demo".to_string(),
+                    last_save: Utc::now(),
+                    oxygen: 240,
+                    player_direction: Direction::North,
+                    player_position: (11, 42, 1),
+                    real_map: load_map_csv().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e))).expect("Falha ao carregar mapa"),
+                    //player_map: vec![vec![vec!["".to_string(); 50]; 50];3];
+                    player_map: player_map,
+                };
+
+                game_loop(demo_game, true);
+            },
             "4" =>{
                 delete_save_menu();
             },
@@ -495,11 +522,11 @@ fn print_help(){
 }
 
 
-fn game_loop(mut game: Game){
-
-    //let mut cur_game: &mut Game = &mut game;
+fn game_loop(mut game: Game, is_demo : bool){
     println!("\nJogo começado! Digite 'Help' para saber como dirigir o submarino '{}'", &game.sub_name);
     
+    let mut demo_steps = 0;
+
     loop {
         game_hud(&game);
 
@@ -511,7 +538,20 @@ fn game_loop(mut game: Game){
             break;
         }
 
-        let input = get_player_input();
+        let mut input = "".to_string();
+        if !is_demo{
+            input = get_player_input();
+        }else{
+            thread::sleep(Duration::from_millis(500));
+            let demo_inputs = load_demo_csv().expect("REASON");
+            if demo_steps+1 > demo_inputs.len(){
+                println!("Simulação falha, fechando o jogo...");
+                break;
+            }
+            input = demo_inputs[demo_steps].clone();
+            println!("{}",input);
+            demo_steps += 1;
+        }
         match match_player_input(&input) {
             Some(Action::Move(dir)) => {
                 move_sub(&mut game, dir);
