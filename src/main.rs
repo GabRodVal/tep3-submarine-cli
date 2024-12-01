@@ -3,7 +3,6 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::io::Read;
-use std::array;
 use std::path::Path;
 use regex::Regex;
 use csv::Reader;
@@ -58,11 +57,12 @@ fn print_movement(dir: &Direction) -> std::io::Result<()>{
     Ok(())
 }
 
+#[allow(unused_variables, unused_assignments)]
 fn create_save_file() -> std::io::Result<()> {
     let title_pattern = Regex::new(r"^[A-Za-z]{1,12}$").unwrap();
     let mut sub_name = String::new();
     let mut player_map =  vec![vec![vec!["".to_string(); 50]; 50];3];
-    player_map[1][42][10] = "player".to_string();
+    player_map[1][41][10] = "player".to_string();
 
     loop {
         println!("Insira o nome de seu submarino (max 12 chars):");
@@ -75,15 +75,14 @@ fn create_save_file() -> std::io::Result<()> {
         }
     }
 
-    let mut cur_game = Game{
+    let cur_game = Game{
         id: get_save_files().expect("Erro ao carregar arquivos salvos.").len() as u8 + 1,
         sub_name: String::from(sub_name),
         last_save: Utc::now(),
         oxygen: 240,
         player_direction: Direction::North,
-        player_position: (11, 42, 1),
+        player_position: (11, 41, 1),
         real_map: load_map_csv().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e)))?,
-        //player_map: vec![vec![vec!["".to_string(); 50]; 50];3];
         player_map: player_map,
     };
 
@@ -105,6 +104,7 @@ fn create_save_file() -> std::io::Result<()> {
     Ok(())
 }
 
+#[allow(unused_variables)]
 fn update_save_file(game: &Game) -> std::io::Result<()>{
     let save_files = get_save_files()?;
 
@@ -145,9 +145,10 @@ fn get_save_files() -> std::io::Result<Vec<String>> {
     
 }
 
+#[allow(unused_variables)]
 fn load_save_menu() ->std::io::Result<Game>{
     let save_files = get_save_files()?;
-    let mut input = String::new();
+    let input = String::new();
 
     for sf in &save_files {
         println!("{}", sf);
@@ -159,7 +160,7 @@ fn load_save_menu() ->std::io::Result<Game>{
         let input = get_player_input();
         for sf in &save_files{
             if sf.contains(&input) {
-                let mut game = load_save_file(&sf)?;
+                let game = load_save_file(&sf)?;
                 return Ok(game);
             }
         }
@@ -168,6 +169,7 @@ fn load_save_menu() ->std::io::Result<Game>{
 
 }
 
+#[allow(unused_assignments)]
 fn delete_save_menu() -> Result<(), Box<dyn std::error::Error>>{
     let save_files = get_save_files()?;
     let mut input = String::new();
@@ -222,11 +224,12 @@ fn load_save_file(save_name: &str) -> std::io::Result<Game> {
 fn delete_save_file(save_name: &str){
     let filepath = format!("saves/{}", save_name);
 
-    fs::remove_file(&filepath);
+    let _ = fs::remove_file(&filepath);
     
     println!("Jogo {} deletado com sucesso", save_name);
 }
 
+#[allow(unused_assignments)]
 fn load_map_csv() -> Result<Vec<Vec<Vec<String>>>, Box<dyn std::error::Error>> {
     let mut base_map = Reader::from_path("assets/base_map.csv")?;
     let mut local_map: Vec<Vec<Vec<String>>> = vec![vec![vec!["".to_string(); 50]; 50];3];
@@ -286,7 +289,7 @@ fn title_screen(){
         let input = get_player_input();
         match input.as_str() {
             "1" =>{
-                create_save_file();
+                let _ = create_save_file();
                 break
             },
             "2" => {
@@ -302,7 +305,7 @@ fn title_screen(){
             },
             "3" =>{
                 let mut player_map =  vec![vec![vec!["".to_string(); 50]; 50];3];
-                player_map[1][42][10] = "player".to_string();
+                player_map[1][41][10] = "player".to_string();
 
                 let demo_game = Game{
                     id: get_save_files().expect("Erro ao carregar arquivos salvos.").len() as u8 + 1,
@@ -310,16 +313,15 @@ fn title_screen(){
                     last_save: Utc::now(),
                     oxygen: 240,
                     player_direction: Direction::North,
-                    player_position: (11, 42, 1),
+                    player_position: (11, 41, 1),
                     real_map: load_map_csv().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e))).expect("Falha ao carregar mapa"),
-                    //player_map: vec![vec![vec!["".to_string(); 50]; 50];3];
                     player_map: player_map,
                 };
 
                 game_loop(demo_game, true);
             },
             "4" =>{
-                delete_save_menu();
+                let _ = delete_save_menu();
             },
             "5" =>break,
             _ =>println!("Opção inválida"),
@@ -375,7 +377,7 @@ fn move_sub(game: &mut Game,dir: Direction){
     let (cur_x, cur_y, cur_z) = game.player_position;
     let (mut next_x, mut next_y, mut next_z) = (cur_x, cur_y, cur_z);
 
-    print_movement(&dir);
+    let _ = print_movement(&dir);
 
     match dir {
         Direction::North => {
@@ -415,7 +417,7 @@ fn move_sub(game: &mut Game,dir: Direction){
         Direction::Down => next_z += 1,
     }
 
-    if next_x < 0 || next_x > 49 || next_y < 0 || next_y > 49{
+    if next_x > 49 || next_y > 49{
         println!("Área fora dos parâmetros dá missão! retornando...");
         return;
     }else if next_z > 2{
@@ -521,7 +523,7 @@ fn print_help(){
     println!("OBS: Os comandos aqui expostos NÃO são case-sensitive");
 }
 
-
+#[allow(unused_assignments)]
 fn game_loop(mut game: Game, is_demo : bool){
     println!("\nJogo começado! Digite 'Help' para saber como dirigir o submarino '{}'", &game.sub_name);
     
@@ -577,7 +579,7 @@ fn game_loop(mut game: Game, is_demo : bool){
             }
             Some(Action::Save) =>{
                 game.last_save = Utc::now();
-                update_save_file(&game);
+                let _ =update_save_file(&game);
             }
             Some(Action::Help) =>{
                 print_help();
@@ -594,7 +596,7 @@ fn game_loop(mut game: Game, is_demo : bool){
 fn main() {
     
     if !Path::new("saves").exists() {
-        fs::create_dir("saves");
+        let _ =fs::create_dir("saves");
     }
 
     title_screen();
