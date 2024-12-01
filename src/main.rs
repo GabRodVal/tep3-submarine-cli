@@ -103,6 +103,19 @@ fn create_save_file() -> std::io::Result<()> {
     Ok(())
 }
 
+fn update_save_file(game: &Game) -> std::io::Result<()>{
+    let save_files = get_save_files()?;
+
+    let save_name = format!("{}-{}.json", game.id, game.sub_name);
+    let filepath = format!("saves/{}", save_name);
+
+    let mut file = File::create(filepath)?;
+    let data = serde_json::to_string(&game)?;
+    file.write_all(data.as_bytes())?;
+
+    println!("Jogo salvo com sucesso!");
+    Ok(())
+}
 
 fn get_save_files() -> std::io::Result<Vec<String>> {
     let entries = fs::read_dir("saves")?;
@@ -187,7 +200,6 @@ fn delete_save_menu() -> Result<(), Box<dyn std::error::Error>>{
     }
 
 }
-
 
 fn load_save_file(save_name: &str) -> std::io::Result<Game> {
 
@@ -524,8 +536,8 @@ fn game_loop(mut game: Game){
                 break;
             }
             Some(Action::Save) =>{
-                println!("Encerrando o jogo...");
-                break;
+                game.last_save = Utc::now();
+                update_save_file(&game);
             }
             Some(Action::Help) =>{
                 print_help();
